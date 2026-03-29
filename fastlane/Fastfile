@@ -1,0 +1,146 @@
+require "base64"
+require "tmpdir"
+
+default_platform(:ios)
+
+def ensure_env_vars!(*keys)
+  missing = keys.flatten.select do |key|
+    value = ENV[key]
+    value.nil? || value.strip.empty?
+  end
+  UI.user_error!("Missing required environment variables: #{missing.join(', ')}") unless missing.empty?
+end
+
+def app_build_number
+  ENV.fetch("APP_BUILD_NUMBER", Time.now.strftime("%Y%m%d%H%M"))
+end
+
+def app_version_name
+  ENV.fetch("APP_VERSION_NAME", get_version_number(xcodeproj: "ios/Runner.xcodeproj"))
+end
+
+def metadata_root
+  File.expand_path("metadata", __dir__)
+end
+
+def release_notes_generator
+  File.expand_path("gen_release_notes", __dir__)
+end
+
+def ensure_release_notes!
+  sh("bash #{release_notes_generator}")
+end
+
+def app_store_connect_api_key_for_ci
+  ensure_env_vars!("APP_STORE_CONNECT_API_KEY_ID", "APP_STORE_CONNECT_API_ISSUER_ID")
+
+  key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+  if (key_path.nil? || key_path.empty?) && ENV["APP_STORE_CONNECT_API_KEY_BASE64"]
+    decoded_path = File.join(Dir.tmpdir, "AuthKey.p8")
+    File.binwrite(decoded_path, Base64.decode64(ENV.fetch("APP_STORE_CONNECT_API_KEY_BASE64")))
+    ENV["APP_STORE_CONNECT_API_KEY_PATH"] = decoded_path
+    key_path = decoded_path
+  end
+
+  ensure_env_vars!("APP_STORE_CONNECT_API_KEY_PATH")
+
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_API_ISSUER_ID"),
+    key_filepath: key_path,
+    duration: 1200,
+    in_house: false
+  )
+end
+
+def without_app_store_connect_api_key_path
+  original = ENV.delete("APP_STORE_CONNECT_API_KEY_PATH")
+  yield
+ensure
+  ENV["APP_STORE_CONNECT_API_KEY_PATH"] = original unless original.nil?
+end
+
+platform :android do
+  desc "Upload the production Android App Bundle to Google Play"
+  lane :a_rel do
+    ensure_env_vars!(
+      "ANDROID_SERVICE_ACCOUNT_JSON_PATH",
+      "AAB_PATH",
+      "ANDROID_PACKAGE_NAME",
+      "APP_BUILD_NUMBER"
+    )
+
+    ensure_release_notes!
+
+    supply(
+      json_key: ENV.fetch("ANDROID_SERVICE_ACCOUNT_JSON_PATH"),
+      package_name: ENV.fetch("ANDROID_PACKAGE_NAME"),
+      aab: ENV.fetch("AAB_PATH"),
+      track: ENV.fetch("ANDROID_TRACK", "production"),
+      release_status: ENV.fetch("ANDROID_RELEASE_STATUS", "draft"),
+      changes_not_sent_for_review: true,
+      metadata_path: File.join(metadata_root, "android"),
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: false,
+      skip_upload_changelogs: false,
+      version_code: app_build_number.to_i,
+      version_name: app_version_name,
+      in_app_update_priority: 2,
+      timeout: 300
+    )
+  end
+end
+
+platform :ios do
+  desc "Install signing assets for production iOS releases"
+  lane :prepare_ios_signing do
+    ensure_env_vars!("MATCH_GIT_URL", "MATCH_PASSWORD")
+
+    api_key = app_store_connect_api_key_for_ci
+
+    Bundler.with_unbundled_env do
+      sh("pod install --project-directory=ios")
+    end
+
+    match(
+      api_key: api_key,
+      type: ENV.fetch("IOS_EXPORT_METHOD", "appstore"),
+      readonly: ENV["CI"] == "true",
+      app_identifier: [ENV.fetch("IOS_BUNDLE_ID", "com.hoosh.app")]
+    )
+  end
+
+  desc "Upload the production iOS build and metadata to App Store Connect"
+  lane :i_rel do
+    ensure_env_vars!("IPA_PATH", "IOS_BUNDLE_ID", "APP_BUILD_NUMBER")
+
+    api_key = app_store_connect_api_key_for_ci
+    ensure_release_notes!
+
+    without_app_store_connect_api_key_path do
+      deliver(
+        api_key: api_key,
+        app_identifier: ENV.fetch("IOS_BUNDLE_ID"),
+        ipa: ENV.fetch("IPA_PATH"),
+        metadata_path: File.join(metadata_root, "ios"),
+        force: true,
+        skip_screenshots: true,
+        submit_for_review: false,
+        automatic_release: false,
+        precheck_include_in_app_purchases: false,
+        run_precheck_before_submit: true
+      )
+    end
+  end
+end
+
+desc "Refresh generated release notes only"
+lane :meta_sync do
+  ensure_release_notes!
+end
+
+desc "Placeholder screenshot optimization lane"
+lane :shots_opt do
+  UI.message("No screenshot optimization pipeline configured for Hoosh yet.")
+end

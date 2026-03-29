@@ -1,0 +1,126 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function validSeverity(value) {
+      return value in ['low', 'caution', 'high'];
+    }
+
+    function validDangerLevel(value) {
+      return value in ['caution', 'danger'];
+    }
+
+    function validBehavior(value) {
+      return value in ['calm', 'barking', 'chasing', 'aggressive'];
+    }
+
+    function validCoordinates(lat, lng) {
+      return lat is number &&
+        lng is number &&
+        lat >= -90 && lat <= 90 &&
+        lng >= -180 && lng <= 180;
+    }
+
+    function validOptionalString(value, maxLength) {
+      return value == null || (value is string && value.size() <= maxLength);
+    }
+
+    function validReport(data) {
+      return data.keys().hasOnly([
+          'userId',
+          'timestamp',
+          'submittedAt',
+          'lat',
+          'lng',
+          'behavior',
+          'dogCount',
+          'severity',
+          'description',
+          'photoUrl',
+          'anonymous',
+          'reportSource',
+          'repelEventId'
+        ]) &&
+        data.userId is string &&
+        data.userId == request.auth.uid &&
+        data.timestamp is timestamp &&
+        data.submittedAt is timestamp &&
+        validCoordinates(data.lat, data.lng) &&
+        validBehavior(data.behavior) &&
+        data.dogCount is int &&
+        data.dogCount >= 1 &&
+        data.dogCount <= 12 &&
+        validSeverity(data.severity) &&
+        data.anonymous is bool &&
+        validOptionalString(data.description, 280) &&
+        validOptionalString(data.photoUrl, 500) &&
+        data.reportSource in ['manual', 'postRepel'] &&
+        validOptionalString(data.repelEventId, 128);
+    }
+
+    function validRepelEvent(data) {
+      return data.keys().hasOnly([
+          'userId',
+          'lat',
+          'lng',
+          'timestamp'
+        ]) &&
+        data.userId is string &&
+        data.userId == request.auth.uid &&
+        validCoordinates(data.lat, data.lng) &&
+        data.timestamp is timestamp;
+    }
+
+    function validHotspot(data) {
+      return data.keys().hasOnly([
+          'lat',
+          'lng',
+          'reportCount',
+          'dangerLevel',
+          'lastReported',
+          'updatedAt',
+          'createdAt',
+          'areaRadiusMeters',
+          'note',
+          'latestBehavior',
+          'latestSeverity',
+          'latestReportId'
+        ]) &&
+        validCoordinates(data.lat, data.lng) &&
+        data.reportCount is int &&
+        data.reportCount >= 1 &&
+        data.reportCount <= 5000 &&
+        validDangerLevel(data.dangerLevel) &&
+        data.lastReported is timestamp &&
+        data.updatedAt is timestamp &&
+        data.createdAt is timestamp &&
+        data.areaRadiusMeters is number &&
+        data.areaRadiusMeters >= 80 &&
+        data.areaRadiusMeters <= 400 &&
+        validOptionalString(data.note, 280) &&
+        validBehavior(data.latestBehavior) &&
+        validSeverity(data.latestSeverity) &&
+        validOptionalString(data.latestReportId, 128);
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && validReport(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /repel_events/{eventId} {
+      allow read, update, delete: if false;
+      allow create: if isSignedIn() && validRepelEvent(request.resource.data);
+    }
+
+    match /hotspots/{hotspotId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+  }
+}

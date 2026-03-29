@@ -1,0 +1,5 @@
+git_url(ENV.fetch("MATCH_GIT_URL"))
+storage_mode("git")
+type(ENV.fetch("IOS_EXPORT_METHOD", "appstore"))
+readonly(ENV["CI"] == "true")
+app_identifier([ENV.fetch("IOS_BUNDLE_ID", "com.hoosh.app")])

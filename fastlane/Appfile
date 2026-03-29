@@ -1,0 +1,5 @@
+app_identifier(ENV.fetch("IOS_BUNDLE_ID", "com.hoosh.app"))
+package_name(ENV.fetch("ANDROID_PACKAGE_NAME", "com.hoosh.app"))
+team_id(ENV.fetch("APPLE_DEVELOPER_TEAM_ID", "2Q3YD93YN8"))
+
+json_key_file(ENV["ANDROID_SERVICE_ACCOUNT_JSON_PATH"]) if ENV["ANDROID_SERVICE_ACCOUNT_JSON_PATH"]

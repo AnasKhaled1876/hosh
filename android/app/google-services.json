@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "193187327578",
+    "project_id": "hoosh-a4e1d",
+    "storage_bucket": "hoosh-a4e1d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:193187327578:android:50753b3ea5f3e4287e7263",
+        "android_client_info": {
+          "package_name": "com.hoosh.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGLvQLaiXTtHRrKuqSyRyP36mq0QC9Tdk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

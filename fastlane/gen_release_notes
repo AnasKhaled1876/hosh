@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ANDROID_METADATA_DIR="$ROOT_DIR/fastlane/metadata/android"
+IOS_METADATA_DIR="$ROOT_DIR/fastlane/metadata/ios"
+BUILD_NUMBER="${APP_BUILD_NUMBER:-0}"
+
+mkdir -p \
+  "$ANDROID_METADATA_DIR/en-US/changelogs" \
+  "$ANDROID_METADATA_DIR/ar-EG/changelogs" \
+  "$IOS_METADATA_DIR/en-US" \
+  "$IOS_METADATA_DIR/ar-SA"
+
+PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+if [[ -n "$PREVIOUS_TAG" ]]; then
+  RANGE="$PREVIOUS_TAG..HEAD"
+else
+  RANGE="HEAD"
+fi
+
+TMP_LOG="$(mktemp)"
+git log "$RANGE" --pretty=format:'%s|||%an' > "$TMP_LOG" || true
+
+if [[ ! -s "$TMP_LOG" ]]; then
+  NOTES=$'Hoosh updates\n- Reliability and safety improvements.'
+else
+  NOTES="$(awk -F'\\|\\|\\|' '
+    {
+      subject=$1
+      author=$2
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", subject)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", author)
+      sub(/^(feat|fix|chore|docs|refactor|perf|test|build|ci)(\\([^)]+\\))?:[[:space:]]*/, "", subject)
+      if (subject == "") next
+      if (!seen[author]++) authors[++count]=author
+      if (items[author] == "") {
+        items[author]="- " subject
+      } else {
+        items[author]=items[author] "\n- " subject
+      }
+    }
+    END {
+      if (count == 0) {
+        print "Hoosh updates\n- Reliability and safety improvements."
+      } else {
+        print "Hoosh updates"
+        for (i = 1; i <= count; i++) {
+          author = authors[i]
+          printf "\n%s\n%s\n", author, items[author]
+        }
+      }
+    }
+  ' "$TMP_LOG")"
+fi
+
+printf '%s\n' "$NOTES" > "$ANDROID_METADATA_DIR/en-US/changelogs/default.txt"
+printf '%s\n' "$NOTES" > "$ANDROID_METADATA_DIR/ar-EG/changelogs/default.txt"
+printf '%s\n' "$NOTES" > "$ANDROID_METADATA_DIR/en-US/changelogs/${BUILD_NUMBER}.txt"
+printf '%s\n' "$NOTES" > "$ANDROID_METADATA_DIR/ar-EG/changelogs/${BUILD_NUMBER}.txt"
+printf '%s\n' "$NOTES" > "$IOS_METADATA_DIR/en-US/release_notes.txt"
+printf '%s\n' "$NOTES" > "$IOS_METADATA_DIR/ar-SA/release_notes.txt"
+
+rm -f "$TMP_LOG"

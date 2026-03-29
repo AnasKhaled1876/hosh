@@ -1,0 +1,118 @@
+name: Deploy iOS
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  deploy-production:
+    runs-on: macos-latest
+    environment: ios-production
+    permissions:
+      contents: read
+    env:
+      ANDROID_PACKAGE_NAME: com.hoosh.app
+      IOS_BUNDLE_ID: com.hoosh.app
+      APPLE_DEVELOPER_TEAM_ID: 2Q3YD93YN8
+      IOS_EXPORT_METHOD: appstore
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter test
+        run: flutter test
+
+      - name: Validate iOS deploy secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          required=(APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_API_ISSUER_ID APP_STORE_CONNECT_API_KEY_BASE64 MATCH_GIT_URL MATCH_PASSWORD)
+          for key in "${required[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret: $key"
+              exit 1
+            fi
+          done
+
+      - name: Decode App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$KEY_PATH"
+          echo "APP_STORE_CONNECT_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Compute build number
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
+          APP_VERSION_NAME="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          echo "APP_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> "$GITHUB_ENV"
+
+      - name: Check active Xcode
+        run: xcodebuild -version
+
+      - name: Prepare iOS signing
+        run: bundle exec fastlane ios prepare_ios_signing
+
+      - name: Build iOS IPA
+        run: |
+          set -euo pipefail
+          flutter build ipa \
+            --release \
+            --build-name "$APP_VERSION_NAME" \
+            --build-number "$APP_BUILD_NUMBER" \
+            --export-method "$IOS_EXPORT_METHOD"
+          echo "IPA_PATH=$GITHUB_WORKSPACE/build/ios/ipa/Runner.ipa" >> "$GITHUB_ENV"
+          echo "XCARCHIVE_PATH=$GITHUB_WORKSPACE/build/ios/archive/Runner.xcarchive" >> "$GITHUB_ENV"
+
+      - name: Verify signing artifacts
+        run: |
+          set -euo pipefail
+          security find-identity -p codesigning -v
+          codesign -dv --verbose=4 "$XCARCHIVE_PATH/Products/Applications/Runner.app"
+
+      - name: Generate release notes
+        run: bash fastlane/gen_release_notes
+
+      - name: Upload to App Store Connect
+        run: bundle exec fastlane ios i_rel
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: |
+            build/ios/ipa/Runner.ipa
+            build/ios/archive/Runner.xcarchive
+            fastlane/metadata/ios/en-US/release_notes.txt
+            fastlane/metadata/ios/ar-SA/release_notes.txt
