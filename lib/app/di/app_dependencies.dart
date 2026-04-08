@@ -1,6 +1,5 @@
 import 'dart:io' show Platform;
 
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hosh/app/bootstrap/app_bootstrap_cubit.dart';
 import 'package:hosh/core/analytics/app_analytics.dart';
@@ -36,7 +35,7 @@ class AppDependencies {
         : resolveFirebaseOptions();
     final bool liveFirebase = firebaseOptions != null;
     final AnalyticsService analyticsService = liveFirebase
-        ? FirebaseAnalyticsService(FirebaseAnalytics.instance)
+        ? FirebaseAnalyticsService()
         : NoopAnalyticsService();
 
     final AuthRepository authRepository = liveFirebase

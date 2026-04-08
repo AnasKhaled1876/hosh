@@ -1,3 +1,12 @@
+import java.util.Properties
+
+val keystoreProperties = Properties().apply {
+    val keyPropertiesFile = rootProject.file("key.properties")
+    if (keyPropertiesFile.exists()) {
+        keyPropertiesFile.inputStream().use(::load)
+    }
+}
+
 fun envOrProperty(name: String): String? {
     val fromEnv = System.getenv(name)?.takeIf { it.isNotBlank() }
     if (fromEnv != null) {
@@ -6,10 +15,15 @@ fun envOrProperty(name: String): String? {
     return providers.gradleProperty(name).orNull?.takeIf { it.isNotBlank() }
 }
 
-val releaseKeystorePath = envOrProperty("KEYSTORE_PATH")
-val releaseStorePassword = envOrProperty("KEYSTORE_PASSWORD")
-val releaseKeyAlias = envOrProperty("KEY_ALIAS")
-val releaseKeyPassword = envOrProperty("KEY_PASSWORD")
+fun signingValue(envName: String, keyPropertiesName: String): String? {
+    return envOrProperty(envName)
+        ?: keystoreProperties.getProperty(keyPropertiesName)?.takeIf { it.isNotBlank() }
+}
+
+val releaseKeystorePath = signingValue("KEYSTORE_PATH", "storeFile")
+val releaseStorePassword = signingValue("KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("KEY_PASSWORD", "keyPassword")
 val hasReleaseSigning = listOf(
     releaseKeystorePath,
     releaseStorePassword,

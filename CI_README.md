@@ -87,6 +87,23 @@ export KEY_ALIAS="..."
 export KEY_PASSWORD="..."
 ```
 
+Local Android release signing can also use a file-based fallback:
+
+```bash
+cp android/key.properties.example android/key.properties
+```
+
+Then update `android/key.properties` with your real values:
+
+```properties
+storePassword=...
+keyPassword=...
+keyAlias=hoosh-upload
+storeFile=../.secrets/hoosh-upload-keystore.jks
+```
+
+Gradle will prefer CI environment variables when present, and otherwise use `android/key.properties` for local release builds.
+
 Example iOS prerequisites:
 
 ```bash

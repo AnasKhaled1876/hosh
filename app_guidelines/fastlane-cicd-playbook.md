@@ -286,8 +286,17 @@ Recommended behavior:
 - strip commit prefixes like `fix:` / `feat:` / `chore:`
 - generate:
   - Android changelogs
+  - Android `title.txt`
+  - Android `short_description.txt`
+  - Android `full_description.txt`
   - iOS `whats_new`
   - optional store descriptions with contributor appendix
+
+Android-specific rules:
+
+- Android changelogs must be named by the Play version code / CI build number, not the marketing version
+- Android release notes must stay at or below Play’s 500-character limit
+- do not write a trailing newline to Android changelog files if you are already at the limit
 
 ### Locale warning
 
@@ -295,13 +304,13 @@ Do not assume Android and iOS support the same locale folder names.
 
 Example we hit:
 
-- Android accepted `ar-EG`
-- App Store Connect rejected `ar-EG`
-- iOS needed `ar-SA`
+- Google Play rejected `ar-EG`
+- Android store metadata needed `ar`
+- App Store Connect needed `ar-SA`
 
 Rule:
 
-- verify iOS metadata locale names against App Store Connect accepted locale codes
+- verify Android and iOS metadata locale names against each store's accepted locale codes
 
 ---
 
@@ -442,6 +451,46 @@ Fix:
 
 - use a valid iOS App Store locale, e.g. `ar-SA`
 
+### 10.10b Google Play listing metadata incomplete
+
+Problem:
+
+- `supply` uploaded Android metadata but Play rejected the listing because the locale had no `title`
+
+Fix:
+
+- generate all required Android store-listing files for each locale:
+  - `title.txt`
+  - `short_description.txt`
+  - `full_description.txt`
+
+Do not assume `full_description.txt` alone is enough.
+
+### 10.10c Android changelogs named by marketing version instead of version code
+
+Problem:
+
+- `supply` looked for changelogs like `601.txt`
+- the generator wrote `1.0.0.txt`
+
+Fix:
+
+- for Android, write changelog files using the build/version code that Play receives
+- in CI, that should follow the computed `APP_BUILD_NUMBER`
+
+### 10.10d Android changelog exceeded Play's 500-character limit by one character
+
+Problem:
+
+- Play rejected the release notes because the changelog length was `501` with a max of `500`
+- the generator fit the visible text to 500 characters, then appended a trailing newline
+
+Fix:
+
+- keep Android changelog content at or below 500 characters total
+- write Android changelog files without an automatic trailing newline
+- verify the generated file length for the actual CI build number when debugging
+
 ### 10.11 First App Store version may fail in metadata/review flow
 
 Problem:
@@ -479,6 +528,25 @@ Fix:
 - replace launcher icons before store submission
 - do not leave asset generation as “later”
 
+### 10.13b Android 12 native splash wrapped the logo in an unwanted white circle
+
+Problem:
+
+- the Android splash screen showed the app logo inside a white plate/ring even though the Flutter splash itself was dark
+- this came from the Android 12 native splash treatment, not the Flutter widget tree
+
+Fix:
+
+- explicitly set the Android 12 splash icon in `values-v31/styles.xml` and `values-night-v31/styles.xml`
+
+Pattern:
+
+```xml
+<item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+```
+
+Do not assume the launcher icon will be used exactly as intended unless the Android 12 splash theme points at it directly.
+
 ### 10.14 Xcode / SDK submission deadline drift
 
 Problem:
@@ -507,6 +575,23 @@ Fix:
 
 - explicitly verify the runner image / Xcode availability before freezing the workflow
 - do not assume `macos-latest` automatically satisfies Apple’s latest SDK rule
+
+### 10.16 Flutter flavored Android project launched without a flavor
+
+Problem:
+
+- local `flutter run` / IDE run actions failed with:
+  - `Gradle build failed to produce an .apk file`
+- Gradle correctly produced flavored APKs like `app-production-debug.apk`, but Flutter was looking for the non-flavored default debug APK
+
+Fix:
+
+- when the Android project defines flavors, make the IDE launch configuration explicit
+- point the default run profile at the correct entrypoint and flavor, for example:
+  - `lib/main_production.dart`
+  - `--flavor production`
+
+Do not assume local run/debug will work with flavored Android builds unless the launch config is flavor-aware.
 
 ---
 
@@ -601,11 +686,16 @@ Do **not**:
 - assume `match` is configured just because the user added some secrets
 - assume GitHub repo secrets exist in the local shell
 - assume App Store locale names equal Play locale names
+- assume Play listing metadata only needs `full_description.txt`
+- assume Android changelog files should be named by marketing version
+- assume a 500-character Android changelog can safely include a trailing newline
 - assume static build numbers are acceptable
 - assume `macos-latest` has the Xcode version Apple currently requires
 - assume iOS app icons can contain alpha just because they look opaque
 - leave `deliver` to infer both `api_key` and `api_key_path`
 - run `pod install` inside Bundler without checking for environment conflicts
+- assume Android 12 splash will render the launcher icon correctly without explicit theme configuration
+- assume local IDE run configs understand product flavors automatically
 
 ---
 
@@ -629,11 +719,15 @@ Important constraints:
 - Do not scaffold beta/staging unless the repo already clearly needs it
 - Do not assume store apps already exist; call that out if missing
 - Do not rely on static `pubspec.yaml` build numbers in CI
+- For Android metadata, generate `title.txt`, `short_description.txt`, and `full_description.txt`
+- For Android changelogs, name files by version code / CI build number, not marketing version
+- Keep Android changelog files within Play's 500-character limit including file formatting
 - In Fastlane, exclude IAP precheck when using App Store Connect API key
 - Prevent `deliver` from seeing both `api_key` and `APP_STORE_CONNECT_API_KEY_PATH`
 - If `pod install` runs from Fastlane, avoid Bundler/CocoaPods environment conflicts
 - Use valid iOS App Store locale folder names
 - Ensure the iOS 1024 marketing icon has no alpha channel
+- If Android 12 splash is customized, set `windowSplashScreenAnimatedIcon` explicitly
 - Keep GitHub environments for production gates
 
 Deliverables:

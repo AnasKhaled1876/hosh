@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hosh/core/models/app_models.dart';
 
@@ -380,13 +381,11 @@ class NoopAnalyticsService implements AnalyticsService {
 }
 
 class FirebaseAnalyticsService implements AnalyticsService {
-  FirebaseAnalyticsService(this._analytics);
-
-  final FirebaseAnalytics _analytics;
+  FirebaseAnalyticsService();
 
   @override
   void setUserId(String? userId) {
-    unawaited(_guard(() => _analytics.setUserId(id: userId)));
+    unawaited(_guard((FirebaseAnalytics analytics) => analytics.setUserId(id: userId)));
   }
 
   @override
@@ -475,7 +474,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }) {
     unawaited(
       _guard(
-        () => _analytics.logScreenView(
+        (FirebaseAnalytics analytics) => analytics.logScreenView(
           screenName: screenName,
           screenClass: screenClass,
         ),
@@ -759,7 +758,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
   void _setUserProperty(String name, String value) {
     unawaited(
-      _guard(() => _analytics.setUserProperty(name: name, value: value)),
+      _guard(
+        (FirebaseAnalytics analytics) =>
+            analytics.setUserProperty(name: name, value: value),
+      ),
     );
   }
 
@@ -771,14 +773,28 @@ class FirebaseAnalyticsService implements AnalyticsService {
       }
     });
     unawaited(
-      _guard(() => _analytics.logEvent(name: name, parameters: filtered)),
+      _guard(
+        (FirebaseAnalytics analytics) =>
+            analytics.logEvent(name: name, parameters: filtered),
+      ),
     );
   }
 
-  Future<void> _guard(Future<void> Function() action) async {
+  Future<void> _guard(Future<void> Function(FirebaseAnalytics analytics) action) async {
+    final FirebaseAnalytics? analytics = _analyticsOrNull;
+    if (analytics == null) {
+      return;
+    }
     try {
-      await action();
+      await action(analytics);
     } catch (_) {}
+  }
+
+  FirebaseAnalytics? get _analyticsOrNull {
+    if (Firebase.apps.isEmpty) {
+      return null;
+    }
+    return FirebaseAnalytics.instance;
   }
 }
 

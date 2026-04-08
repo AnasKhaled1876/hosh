@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 hoosh-a4e1d-583b391bb433.json
+
+.secrets/
+*.jks
+*.keystore

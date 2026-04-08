@@ -155,52 +155,57 @@ class _RepelScreenState extends State<RepelScreen> {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 28),
-                  InkWell(
-                    onTap: () {
-                      context.read<RepelBloc>().add(
-                        state.session.isActive
-                            ? const RepelStopped()
-                            : const RepelStarted(),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(120),
-                    child: Ink(
-                      height: 220,
-                      width: 220,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: <Color>[
-                            HooshColors.primary,
-                            HooshColors.primaryContainer,
+                  Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () {
+                        context.read<RepelBloc>().add(
+                          state.session.isActive
+                              ? const RepelStopped()
+                              : const RepelStarted(),
+                        );
+                      },
+                      customBorder: const CircleBorder(),
+                      child: Ink(
+                        height: 220,
+                        width: 220,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: <Color>[
+                              HooshColors.primary,
+                              HooshColors.primaryContainer,
+                            ],
+                          ),
+                          boxShadow: HooshShadows.hero,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Icon(
+                              state.session.isActive
+                                  ? Icons.stop_circle_outlined
+                                  : Icons.volume_up_rounded,
+                              color: Colors.white,
+                              size: 52,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              state.session.isActive ? 'STOP' : 'REPEL',
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                  ),
+                            ),
                           ],
                         ),
-                        boxShadow: HooshShadows.hero,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Icon(
-                            state.session.isActive
-                                ? Icons.stop_circle_outlined
-                                : Icons.volume_up_rounded,
-                            color: Colors.white,
-                            size: 52,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            state.session.isActive ? 'STOP' : 'REPEL',
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
